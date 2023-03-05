@@ -64,15 +64,22 @@ class Blockchain {
    * Note: the symbol `_` in the method name indicates in the javascript convention
    * that this method is a private method.
    */
-  async _addBlock(block) {
-    let previousBlock = this.chain.slice(-1).pop();
-    if (previousBlock) {
-      block.previousBlockHash = previousBlock.hash;
-    }
-    block.height = this.height + 1;
-    block.time = Date.now();
-    block.setHash();
-    this.chain.push(block);
+  _addBlock(block) {
+    return new Promise((resolve, reject) => {
+      try {
+        let previousBlock = this.chain.slice(-1).pop();
+        if (previousBlock) {
+          block.previousBlockHash = previousBlock.hash;
+        }
+        block.height = this.height + 1;
+        block.time = Date.now();
+        block.setHash();
+        this.chain.push(block);
+        resolve(true);
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   /**
@@ -84,11 +91,15 @@ class Blockchain {
    * @param {string} address
    * @returns {Promise<string>}
    */
-  async requestMessageOwnershipVerification(address) {
-    return `${address}:${new Date()
-      .getTime()
-      .toString()
-      .slice(0, -3)}:starRegistry`;
+  requestMessageOwnershipVerification(address) {
+    return new Promise((resolve) => {
+      resolve(
+        `${address}:${new Date()
+          .getTime()
+          .toString()
+          .slice(0, -3)}:starRegistry`
+      );
+    });
   }
 
   /**
@@ -108,16 +119,25 @@ class Blockchain {
    * @param {*} signature
    * @param {*} star
    */
-  async submitStar(address, message, signature, star) {
-    let messageTime = new Date(Number(message.split(":")[1]));
-    let currentTime = new Date();
-    let diff = currentTime.getTime() - messageTime.getTime();
-    if (diff < 5 * 60 * 1000) {
-      bitcoinMessage.verify(message, address, signature);
-      let block = new BlockClass.Block({ owner: address, star });
-      await this._addBlock(block);
-      return block;
-    }
+  submitStar(address, message, signature, star) {
+    return new Promise(async (resolve, reject) => {
+      try {
+        let messageTime = new Date(Number(message.split(":")[1]) * 1000);
+        let currentTime = new Date();
+        let diff = currentTime.getTime() / 1000 - messageTime.getTime() / 1000;
+        if (diff < 5 * 60) {
+          bitcoinMessage.verify(message, address, signature);
+          let block = new BlockClass.Block({ owner: address, star });
+          await this._addBlock(block);
+          resolve(block);
+        } else {
+          resolve(null);
+        }
+      } catch (error) {
+        console.log(error);
+        reject(error);
+      }
+    });
   }
 
   /**
@@ -127,15 +147,17 @@ class Blockchain {
    * @param {string} hash
    * @returns {Promise<BlockClass.Block|undefined>}
    */
-  async getBlockByHash(hash) {
-    let block = this.chain.find((value) => value.hash == hash);
-    return block;
+  getBlockByHash(hash) {
+    return new Promise((resolve) => {
+      let block = this.chain.find((value) => value.hash == hash);
+      resolve(block);
+    });
   }
 
   /**
    * This method will return a Promise that will resolve with the Block object
    * with the height equal to the parameter `height`
-   * @param {*} height
+   * @param {number} height
    */
   getBlockByHeight(height) {
     let self = this;
@@ -155,11 +177,19 @@ class Blockchain {
    * Remember the star should be returned decoded.
    * @param {string} address
    */
-  async getStarsByWalletAddress(address) {
-    return this.chain
-      .slice(1)
-      .filter((block) => block.getBData().address == address)
-      .map((block) => block.getBData());
+  getStarsByWalletAddress(address) {
+    return new Promise((resolve, reject) => {
+      try {
+        resolve(
+          this.chain
+            .slice(1)
+            .filter((block) => block.getBData().owner == address)
+            .map((block) => block.getBData())
+        );
+      } catch (error) {
+        reject(error);
+      }
+    });
   }
 
   /**
@@ -168,21 +198,23 @@ class Blockchain {
    * 1. You should validate each block using `validateBlock`
    * 2. Each Block should check the with the previousBlockHash
    */
-  async validateChain() {
-    let errorLog = [];
-    let previousBlockHash = null;
-    for (let i in this.chain) {
-      try {
-        this.chain[i].validate();
-        if (this.chain[i].hash !== previousBlockHash) {
-          errorLog.push(i);
+  validateChain() {
+    return new Promise((resolve, reject) => {
+      let errorLog = [];
+      let previousBlockHash = null;
+      for (let i in this.chain) {
+        try {
+          this.chain[i].validate();
+          if (this.chain[i].hash !== previousBlockHash) {
+            errorLog.push(i);
+          }
+        } catch (error) {
+          errorLog.push(error);
         }
-      } catch (error) {
-        errorLog.push(error);
+        previousBlockHash = this.chain[i].hash;
       }
-      previousBlockHash = this.chain[i].hash;
-    }
-    return errorLog;
+      resolve(errorLog);
+    });
   }
 }
 
