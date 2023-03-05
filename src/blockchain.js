@@ -75,7 +75,18 @@ class Blockchain {
         block.time = Date.now();
         block.setHash();
         this.chain.push(block);
-        resolve(true);
+        this.validateChain()
+          .then((errorLogs) => {
+            if (errorLogs) {
+              for (let i in errorLogs) {
+                if (errorLogs[i]) {
+                  reject(errorLogs[i]);
+                }
+              }
+            }
+            resolve(true);
+          })
+          .catch((error) => reject(error));
       } catch (error) {
         reject(error);
       }
@@ -200,20 +211,27 @@ class Blockchain {
    */
   validateChain() {
     return new Promise((resolve, reject) => {
-      let errorLog = [];
-      let previousBlockHash = null;
-      for (let i in this.chain) {
-        try {
-          this.chain[i].validate();
-          if (this.chain[i].hash !== previousBlockHash) {
-            errorLog.push(i);
+      try {
+        let errorLog = [];
+        let previousBlockHash = null;
+        for (let i in this.chain) {
+          if (i == "0") {
+            continue;
           }
-        } catch (error) {
-          errorLog.push(error);
+          try {
+            this.chain[i].validate();
+            if (this.chain[i].hash !== previousBlockHash) {
+              errorLog.push(i);
+            }
+          } catch (error) {
+            errorLog.push(error);
+          }
+          previousBlockHash = this.chain[i].hash;
         }
-        previousBlockHash = this.chain[i].hash;
+        resolve(errorLog);
+      } catch (error) {
+        reject(error);
       }
-      resolve(errorLog);
     });
   }
 }
