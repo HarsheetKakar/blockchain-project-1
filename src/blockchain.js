@@ -77,7 +77,7 @@ class Blockchain {
         this.chain.push(block);
         this.validateChain()
           .then((errorLogs) => {
-            if (errorLogs) {
+            if (errorLogs && Array.isArray(errorLogs)) {
               for (let i in errorLogs) {
                 if (errorLogs[i]) {
                   reject(errorLogs[i]);
@@ -216,11 +216,12 @@ class Blockchain {
         let previousBlockHash = null;
         for (let i in this.chain) {
           if (i == "0") {
+            previousBlockHash = this.chain[0].hash;
             continue;
           }
           try {
             this.chain[i].validate();
-            if (this.chain[i].hash !== previousBlockHash) {
+            if (this.chain[i].previousBlockHash !== previousBlockHash) {
               errorLog.push(i);
             }
           } catch (error) {
@@ -228,7 +229,11 @@ class Blockchain {
           }
           previousBlockHash = this.chain[i].hash;
         }
-        resolve(errorLog);
+        if (errorLog.length > 0) {
+          resolve(errorLog);
+        } else {
+          resolve("Chain is valid");
+        }
       } catch (error) {
         reject(error);
       }
